@@ -1,0 +1,128 @@
+function [] = calcBestThresh(x,y, winWidth, winLength, classifier, numPos, numNeg)
+
+PosImgSize = numPos;
+NegImgSize = numNeg;
+
+totalSize = PosImgSize + NegImgSize;
+
+thresPos = zeros(1, PosImgSize);
+thresNeg = zeros(1, NegImgSize);
+toc
+disp('Evaluating images to get best Threshold');
+tic;
+for i=1:PosImgSize
+    str = strcat('VarianceFaces\int\', int2str(i),'.mat');  %may be I should get the database path from calling function instead of explicitly mentioning here
+    integralImage = open(str);
+    integralImage = integralImage.intImg;
+    thresPos(i) = HaarFeatureCalc(integralImage, x, y, winWidth, winLength, classifier);
+  
+end
+
+posMean = mean(thresPos);
+posStd = std(thresPos);
+posMax = max(thresPos);
+posMin = min(thresPos);
+weightsfile = 'weights.mat';
+adaWeights = open(weightsfile);
+adaWeights = adaWeights.adaWeights;
+
+for i=1:NegImgSize
+    str = strcat('VarianceNonFaces\int\', int2str(i),'.mat');
+    integralImage = open(str);
+    integralImage = integralImage.intImg;
+    thresPos(i) = HaarFeatureCalc(integralImage, x, y, winWidth, winLength, classifier);
+end
+
+% disp('Finished evaluating all images at specified classifier');
+% disp('Looking for the best threshold');
+thresh = [thresPos thresNeg]; %its f(x) equavalent of v&j paper
+err = [];
+e = ones(1, totalSize);
+
+it =  ; %ITERATION NO.
+for j = 1:it   %this particular j at particual feature shall be checked for threshold
+    pos = 0;
+    neg = 0;
+    h = ones(1, totalSize);
+    %correct ones will have 0 and false will have 1
+    for i = 1:PosImgSize
+        if(thresh(i) <= posMean+(abs(posMax - posMean)/it)*j && thresh(i) >= posMean - (abs(posMean - posMin)/it)*j)
+            %this is the discriminating condition; play with it more
+            pos = pos+1;
+            h(i) = 0;   %correctly classified may be
+        end
+    end
+    
+    for i = 1+PosImgSize:totalSize
+        if(thresh(i) <= posMean + (abs(posMax - posMean)/it)*j && thresh(i) >= posMean - (abs(posMean - posMin)/it)*j)
+        else
+            neg = neg+1;
+            h(i) = 0; %correctly classified may be
+        end
+    end
+    
+    i = 1:totalSize; % go through every image
+  
+    totalErr = sum(adaWeights(i)*h(i)');
+    %doing this will give me total incorrectly classified fraction
+    posErr = sum(adaWeights(1:PosImgSize)*h(1:PosImgSize)');
+    negErr = sum(adaWeights(1+PosImgSize:totalSize)*h(1+PosImgSize:totalSize)');
+    %total incorrectly classified positive images and negative images fraction by classifier j
+    %so if positive correct are above 1/2 and totalCorrect are above 1/2
+    %then... found a weak classifier
+    
+    if(posErr <= 0.05)
+        if(totalErr < 0.5)
+            disp('Found a classifier \n');
+            adaBoost(x, y, winWidth, winLength, classifier, posMean, posStd, j, totalErr , adaWeights, h, posMax, posMin, posErr, negErr);
+             break;
+        end
+    end
+    
+end
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+%     i = 1:totalSize;
+%    % adaWeights(i);
+%    % c(i)';
+%     totalErr = sum(adaWeights(i)*c(i)');
+%     posErr = sum(adaWeights(1:PosImgSize)*c(1:PosImgSize)');
+%     negErr = sum(adaWeights(PosImgSize+1:totalSize)*c(PosImgSize+1:totalSize)');
+% %     fprintf('Total Error: %d\n', totalErr);
+% %     fprintf('Positive Error: %d\n', posErr);
+% %     fprintf('Negative Error: %d\n', negErr);
+%      if(posErr <= 0.05)
+%         if(totalErr<0.5)
+%             disp('Found weak classifier\n');
+%             adaBoost(x, y, winWidth, winLength, classifier, posMean, posStd, j, totalErr, adaWeights, c, posMax, posMin, posErr, negErr);
+%             break;
+%         end
+%     end
+% end
+% fprintf('Mean: %d\n', posMean);
+% fprintf('Std: %d\n', posStd);
+% fprintf('Max: %d\n', posMax);
+% fprintf('Min: %d\n', posMin);
+
+
